@@ -1,0 +1,120 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define N 10
+#define E 20
+#define MAX_W 100
+#define INF 1000000000
+
+typedef struct { int u, v, w; } Edge;
+
+static Edge edges[E];
+static int adj[N][N];
+static int dist[N][N];
+static int nxt[N][N];
+
+static int is_connected(void) {
+    int seen[N] = {0}, stack[N], top = 0, cnt = 0;
+    stack[top++] = 0; seen[0] = 1;
+    while (top) {
+        int u = stack[--top];
+        cnt++;
+        for (int v = 0; v < N; v++)
+            if (adj[u][v] && !seen[v]) { seen[v] = 1; stack[top++] = v; }
+    }
+    return cnt == N;
+}
+
+static void make_graph(void) {
+    for (;;) {
+        memset(adj, 0, sizeof(adj));
+        int count = 0, perm[N];
+        for (int i = 0; i < N; i++) perm[i] = i;
+        for (int i = N - 1; i > 0; i--) {
+            int j = rand() % (i + 1), t = perm[i]; perm[i] = perm[j]; perm[j] = t;
+        }
+        for (int i = 1; i < N; i++) {
+            int u = perm[i], v = perm[rand() % i], w = rand() % MAX_W + 1;
+            adj[u][v] = adj[v][u] = w;
+            edges[count++] = (Edge){u < v ? u : v, u < v ? v : u, w};
+        }
+        while (count < E) {
+            int u = rand() % N, v = rand() % N;
+            if (u == v || adj[u][v]) continue;
+            int w = rand() % MAX_W + 1;
+            adj[u][v] = adj[v][u] = w;
+            edges[count++] = (Edge){u < v ? u : v, u < v ? v : u, w};
+        }
+        if (is_connected()) return;
+    }
+}
+
+static int cmp_edge(const void *a, const void *b) {
+    const Edge *x = a, *y = b;
+    return x->u != y->u ? x->u - y->u : x->v - y->v;
+}
+
+static void floyd_warshall(void) {
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++) {
+            if (i == j) { dist[i][j] = 0; nxt[i][j] = j; }
+            else if (adj[i][j]) { dist[i][j] = adj[i][j]; nxt[i][j] = j; }
+            else { dist[i][j] = INF; nxt[i][j] = -1; }
+        }
+    for (int k = 0; k < N; k++)
+        for (int i = 0; i < N; i++)
+            for (int j = 0; j < N; j++)
+                if (dist[i][k] != INF && dist[k][j] != INF && dist[i][k] + dist[k][j] < dist[i][j]) {
+                    dist[i][j] = dist[i][k] + dist[k][j];
+                    nxt[i][j] = nxt[i][k];
+                }
+}
+
+static int build_path(int u, int v, int *path) {
+    int len = 0;
+    path[len++] = u;
+    while (u != v) { u = nxt[u][v]; path[len++] = u; }
+    return len;
+}
+
+int main(void) {
+    srand(2026);
+    make_graph();
+    qsort(edges, E, sizeof(Edge), cmp_edge);
+    floyd_warshall();
+
+    printf("Graph\nVertices : %d\nEdges    : %d\n\nEdges\n", N, E);
+    for (int i = 0; i < E; i++)
+        printf("(%d, %d) Weight: %d\n", edges[i].u, edges[i].v, edges[i].w);
+
+    printf("\nShortest Paths\n");
+    int pairs = 0, bad = 0;
+    for (int u = 0; u < N; u++)
+        for (int v = u + 1; v < N; v++) {
+            int path[N];
+            int len = build_path(u, v, path);
+            int sum = 0;
+            printf("\n%d -> %d\nPath     : ", u, v);
+            for (int i = 0; i < len; i++) {
+                printf("%d%s", path[i], i + 1 < len ? " -> " : "\n");
+                if (i + 1 < len) sum += adj[path[i]][path[i + 1]];
+            }
+            printf("Distance : %d\n", dist[u][v]);
+            if (sum != dist[u][v]) bad++;
+            pairs++;
+        }
+
+    printf("\nTotal vertex pairs : %d\n", pairs);
+
+    int edgeCount = 0, selfLoop = 0;
+    for (int i = 0; i < N; i++) {
+        if (adj[i][i]) selfLoop++;
+        for (int j = i + 1; j < N; j++) if (adj[i][j]) edgeCount++;
+    }
+    printf("\nCheck\n");
+    printf("Vertices = %d, Edges = %d, Self-loops = %d\n", N, edgeCount, selfLoop);
+    printf("Connected          : %s\n", is_connected() ? "yes" : "no");
+    printf("Path sum == dist   : %s\n", bad == 0 ? "all 45 OK" : "MISMATCH");
+    return 0;
+}
